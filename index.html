@@ -184,12 +184,13 @@ function speechError() {
   const status = document.querySelector('#audioStatus');
   if (status) status.textContent = 'Não foi possível tocar o áudio neste navegador.';
 }
-function play(indices, sourceLesson = lessonIndex, original = false) {
+function play(indices, sourceLesson = lessonIndex, original = false, translated = false) {
   stopAudio();
   const currentRun = audioRun;
   const status = document.querySelector('#audioStatus');
   if (status) status.textContent = '';
   const sourceClips = original ? originalClips : clips;
+  const language = translated ? 'pt-BR' : 'en-US';
   const mime = original ? 'audio/mpeg' : audioMime;
   const lines = (original ? originals : lessons)[sourceLesson].lines;
   const next = position => {
@@ -202,15 +203,15 @@ function play(indices, sourceLesson = lessonIndex, original = false) {
       row?.setAttribute('aria-current','true');
       if (position > 0) row?.scrollIntoView({block:'nearest'});
     }
-    if (sourceClips[sourceLesson]?.[index]) {
+    if (!translated && sourceClips[sourceLesson]?.[index]) {
       audio.src = 'data:' + mime + ';base64,' + sourceClips[sourceLesson][index];
       audio.playbackRate = speechRate;
       audio.onended = () => next(position + 1);
       audio.play().catch(() => { if (currentRun === audioRun) { stopAudio(); speechError(); } });
     } else if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(lines[index][1]);
-      utterance.lang = 'en-US';
-      utterance.voice = speechSynthesis.getVoices().find(voice => /^en-US$/i.test(voice.lang)) || null;
+      const utterance = new SpeechSynthesisUtterance(lines[index][translated ? 2 : 1]);
+      utterance.lang = language;
+      utterance.voice = speechSynthesis.getVoices().find(voice => voice.lang.toLowerCase() === language.toLowerCase()) || null;
       utterance.rate = speechRate;
       utterance.onend = () => next(position + 1);
       utterance.onerror = () => { if (currentRun === audioRun) { stopAudio(); speechError(); } };
@@ -256,7 +257,7 @@ function originalDialogue() {
   const scene = originals[originalIndex];
   const names = {Waiter:'Atendente', Waitress:'Atendente', Customer:'Cliente'};
   return `<section class="panel original-dialogue"><p class="muted" lang="en-US">${escapeHTML(scene.heading)}</p><h3 lang="en-US">${escapeHTML(scene.title)}</h3>
-  <div class="controls original-controls"><button class="audio" data-action="original-all">▶ Ouvir diálogo</button><button class="audio" data-action="stop">■ Parar</button>${speedControl()}<label><input id="translation" type="checkbox" ${translation ? 'checked' : ''}> Mostrar tradução</label></div>
+  <div class="controls original-controls"><button class="audio" data-action="original-all">▶ Ouvir diálogo</button><button class="audio" data-action="original-translation">▶ Ouvir tradução</button><button class="audio" data-action="stop">■ Parar</button>${speedControl()}<label><input id="translation" type="checkbox" ${translation ? 'checked' : ''}> Mostrar tradução</label></div>
   <ol class="lines">${scene.lines.map(([role,en,pt],i) => `<li class="line" data-original-line="${i}"><div><div class="role"><span lang="en-US">${role}</span><span class="translation" ${translation ? '' : 'hidden'}> · ${names[role]}</span></div><strong lang="en-US" data-voice="${role==='Customer' ? 'customer' : 'attendant'}">${escapeHTML(en)}</strong><p class="translation" ${translation ? '' : 'hidden'}>${escapeHTML(pt)}</p></div><button class="audio" data-original-audio="${i}" aria-label="Ouvir fala ${i+1}">▶ Ouvir</button></li>`).join('')}</ol></section>`;
 }
 
@@ -510,6 +511,14 @@ app.addEventListener('click', event => {
     renderLesson();
     document.querySelector('#nextQuestion').focus();
     return;
+  }
+  if (d.action === 'original-translation') {
+    const checkbox = app.querySelector('#translation');
+    if (!checkbox.checked) {
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event('change',{bubbles:true}));
+    }
+    play(originals[originalIndex].lines.map((_,i) => i), originalIndex, true, true);
   }
   if (d.action === 'original-all') play(originals[originalIndex].lines.map((_,i) => i), originalIndex, true);
   if (d.action === 'all') play(lessons[lessonIndex].lines.map((_,i) => i));
@@ -976,6 +985,7 @@ document.querySelector('#export-pdf').addEventListener('click', async event => {
 
 
 </script></body></html>
+
 
 
 
